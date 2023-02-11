@@ -9,7 +9,7 @@ use substring::Substring;
 mod trade_env;
 mod rl_env;
 mod rl_agent;
-mod neural_network;
+mod autograd_nn;
 mod market_data;
 mod db_access;
 
@@ -27,8 +27,8 @@ async fn main() {
     let num_episodes = req.epi;
     println!("total episodes: {:?}", num_episodes);
     let max_timesteps = 2000;
-    let input_size = env.state_space() as i64;
-    let output_size = env.action_space() as i64;
+    let input_size = env.state_space() as usize;
+    let output_size = env.action_space() as usize;
     let mut model = RLAgent::new(env.action_space(), input_size, output_size);
     
     for i_episode in 0..num_episodes {
@@ -45,7 +45,7 @@ async fn main() {
 		break;
 	    } 
         }
-	if i_episode % 100 == 0 {
+	if i_episode % 10 == 0 {
 	    let mean_loss = model.get_mean_loss();
 	    println!("looping episode {:?}, loss={:?}, total reward = {:?}", &i_episode, &mean_loss, &total_reward);
 	    if mean_loss < 1.0 && total_reward > 0.0 {
@@ -60,7 +60,7 @@ async fn main() {
 		break;
 	    } 
 	    //println!("{},{},{},{}",t, env.t, env.train_threshold, env.max_steps);
-	    let action = model.infer_action(&observation);
+	    let action = model.select_action(&observation);
 	    action_list.push(action);
             let steprow: StepRow = env.step(action);
 	    observation = steprow.obs.clone();
