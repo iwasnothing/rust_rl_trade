@@ -108,8 +108,14 @@ pub fn pop_db_result_status(val: &Value) -> Option<String> {
 		return None;
 	}
 }
+pub async fn update_req_status(reqid: String, status: String) {
+    let sql_text = format!("update {} set status= \'{}\'", reqid, status);
+    println!("update req sql: {:?}", &sql_text);
+    let resp = run_db_query(&sql_text).await;
+    println!("update req status: {:?}", resp);
+}
 pub async fn claim_req() -> Option<ReqData> {
-    let sql_text = "select * from REQ order by timestamp LIMIT 1";
+    let sql_text = "select * from REQ where status = 'new' or status = 'running' order by timestamp LIMIT 1";
     let resp = run_db_query(sql_text).await;
     let result = match resp {
         Ok(p) => p,
@@ -118,13 +124,16 @@ pub async fn claim_req() -> Option<ReqData> {
     let obj_array = pop_db_result(&result)?.as_array()?.clone();
     if obj_array.len() > 0 {
 	let obj = &obj_array[0];
-	return  parse_req_data(obj);
+	let rq =  parse_req_data(obj)?;
+        update_req_status((&rq).id.clone(), "running".to_string()).await;
+	return Some(rq);
     } else {
 	return None;
     }
 
 }
 pub async fn perf_report(reqid: &str,epi: i64, cumulate_PL: f32, PL: &Vec<f32>, position_history: &Vec<f32>, action_list: &Vec<usize>, prices: &Vec<f32>, asset_value: &Vec<f32>) -> Option<String>{
+    update_req_status(reqid.to_string(), "completed".to_string()).await;
     let total_trade = PL.len();
     let mut win = 0;
     for v in PL {

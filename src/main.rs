@@ -5,6 +5,7 @@ use crate::rl_agent::{RLAgent,MemRow};
 use crate::trade_env::{TradeRLEnv};
 use crate::db_access::{ReqData,claim_req,perf_report};
 use substring::Substring;
+use tokio::time::{sleep, Duration};
 
 mod trade_env;
 mod rl_env;
@@ -15,9 +16,15 @@ mod db_access;
 
 #[tokio::main]
 async fn main() {
+   loop {
+      process_req().await;
+      sleep(Duration::from_millis(10000)).await;
+   }
+}
+async fn process_req() {
     let req = match claim_req().await {
 	Some(r) => r,
-	None => panic!("cannot parse req"),
+	None => return,
     };
     println!("{:?}",&req);
     let mut env: TradeRLEnv = match get_trade_env(&req).await {

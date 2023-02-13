@@ -36,7 +36,7 @@ impl TradeRLEnv {
 	    println!("max_size={}",n);
 	
 	    let _train_threshold: usize = round::floor(n as f64 * train_test_split as f64,0) as usize;
-	    let _capital = 1000.0;
+	    let _capital = 0.0;
 	    let state_size = _names.len()+3;
 	    let mut _state_high: Vec<f32> = Vec::with_capacity(state_size);
 	    let mut _state_low: Vec<f32> = Vec::with_capacity(state_size);
