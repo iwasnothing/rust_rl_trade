@@ -108,6 +108,12 @@ pub fn pop_db_result_status(val: &Value) -> Option<String> {
 		return None;
 	}
 }
+pub async fn log2db(reqid: &str, i_episode: &i64, mean_loss: &f64, total_reward: &f32) { 
+    let sql_text = format!("create Training_log set reqid = \'{}\', epi={}, loss={:.2}, reward = {:.2}", reqid, i_episode, mean_loss, total_reward);
+    println!("log sql: {:?}", &sql_text);
+    let resp = run_db_query(&sql_text).await;
+    println!("log db status: {:?}", resp);
+}
 pub async fn update_req_status(reqid: String, status: String) {
     let sql_text = format!("update {} set status= \'{}\'", reqid, status);
     println!("update req sql: {:?}", &sql_text);
@@ -132,17 +138,59 @@ pub async fn claim_req() -> Option<ReqData> {
     }
 
 }
-pub async fn perf_report(reqid: &str,epi: i64, cumulate_PL: f32, PL: &Vec<f32>, position_history: &Vec<f32>, action_list: &Vec<usize>, prices: &Vec<f32>, asset_value: &Vec<f32>) -> Option<String>{
-    update_req_status(reqid.to_string(), "completed".to_string()).await;
-    let total_trade = PL.len();
-    let mut win = 0;
-    for v in PL {
-        if *v > 0f32 {
-            win += 1;
-        }
+pub fn sign0f32(x: f32) -> f32 {
+    if x > 0f32 {
+	return 1f32;
+    } else if x < 0f32 {
+        return -1f32;
+    } else {
+        return 0f32;
     }
-    let sql = format!("update {} set total_trade={}, win={} , return={}, position={:?}, price={:?}, asset={:?}, profit={:?}, action={:?}, epi={}",
-                reqid.replace("REQ","RESULT"),&total_trade,&win,&100.0*cumulate_PL, position_history, prices,asset_value, PL, action_list, epi);
+}
+pub async fn perf_report(reqid: &str,epi: i64,  position_history: &Vec<f32>,  prices: &Vec<f32>) -> Option<String>{
+    let num = position_history.len();
+    let num_prices = prices.len();
+    println!("pos len = {}, prices len = {}", num, num_prices);
+    assert!(num == num_prices);
+    let mut action_list: Vec<f32> = Vec::with_capacity(num);
+    let mut asset_list: Vec<f32> = Vec::with_capacity(num);
+    let mut pl_list: Vec<f32> = Vec::with_capacity(num);
+    let capital = 1000f32;
+    let mut cash = 1000f32;
+    let mut accum_pl = 0f32;
+    let mut prev_buy = 0f32;
+    let mut win = 0f32;
+    let mut total_trade = 0f32;
+    action_list.push(sign0f32(position_history[0]));
+    asset_list.push(cash+position_history[0]*prices[0]-capital);
+    for i in 1..num {
+        let action = sign0f32(position_history[i] - position_history[i-1]);
+        if action.abs() < 0.01 {
+            action_list.push(0f32);
+        }
+        else {
+            action_list.push(action);
+            cash  = cash-(position_history[i]-position_history[i-1])*prices[i];
+	    if position_history[i] == 0f32 {
+		let _pl = (prices[i] - prev_buy)*position_history[i-1];
+		pl_list.push(_pl);
+		accum_pl += _pl;
+                total_trade += 1.0;
+        	if _pl > 0f32 {
+            	    win += 1.0;
+		}
+	    } else {
+		prev_buy = prices[i]
+	    }
+        }
+        asset_list.push(cash+position_history[i]*prices[i]-capital);
+    }
+    println!("action len = {}, asset len = {}", action_list.len(), asset_list.len());
+    let avg_PL =  accum_pl/total_trade/capital * 100.0;
+    update_req_status(reqid.to_string(), "completed".to_string()).await;
+    println!("annual PL per trade = {:.2}/{}={:.2}", &accum_pl,&total_trade,&avg_PL);
+    let sql = format!("update {} set total_trade={:.2}, win={:.2} , return={:.2}, position={:?}, price={:?}, asset={:?}, profit={:?}, action={:?}, epi={}",
+                reqid.replace("REQ","RESULT"),&total_trade,&win,&avg_PL, position_history, prices,&asset_list, &pl_list, &action_list, epi);
     let resp = run_db_query(&sql).await;
     let result = match resp {
         Ok(p) => return pop_db_result_status(&p),

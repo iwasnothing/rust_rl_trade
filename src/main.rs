@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::rl_env::{RLEnv,StepRow};
 use crate::rl_agent::{RLAgent,MemRow};
 use crate::trade_env::{TradeRLEnv};
-use crate::db_access::{ReqData,claim_req,perf_report};
+use crate::db_access::{ReqData,claim_req,perf_report,log2db};
 use substring::Substring;
 use tokio::time::{sleep, Duration};
 
@@ -52,29 +52,23 @@ async fn process_req() {
 		break;
 	    } 
         }
-	if i_episode % 100 == 0 {
+	if i_episode % 100 == 0 && i_episode > 0 {
 	    let mean_loss = model.get_mean_loss();
-	    println!("looping episode {:?}, loss={:?}, total reward = {:?}", &i_episode, &mean_loss, &total_reward);
-	    if mean_loss < 1.0 && total_reward > 0.0 {
-		break;
-	    }
+	    println!("looping episode {:?}, loss={:.2}, total reward = {:.2}", &i_episode, &mean_loss, &total_reward);
+	    log2db(&req.id, &i_episode, &mean_loss, &total_reward).await;
 	}
     }
     let mut observation = env.start_backtest();
-    let mut action_list: Vec<usize> = Vec::with_capacity(max_timesteps);
-    for t in 1..max_timesteps {
+    for t in 0..max_timesteps {
             if env.is_terminated() { 
 		break;
 	    } 
-	    //println!("{},{},{},{}",t, env.t, env.train_threshold, env.max_steps);
 	    let action = model.infer_action(&observation);
-	    action_list.push(action);
             let steprow: StepRow = env.step(action);
 	    observation = steprow.obs.clone();
             env.save_asset_value();
     }
-    println!("total PL={:?}", &env.cumulate_PL);
-    let result = perf_report(&req.id, req.epi, env.cumulate_PL, &env.PL, &env.position_history, &action_list, &(env.prices[env.train_threshold+1..env.max_steps-1].to_vec()), &env.asset_value).await;
+    let result = perf_report(&req.id, req.epi, &env.position_history,  &(env.prices[env.train_threshold..env.max_steps-1].to_vec())).await;
     match result {
 	Some(s) => println!("{:?}",s),
         None => println!("cannot report performance")

@@ -36,7 +36,7 @@ impl TradeRLEnv {
 	    println!("max_size={}",n);
 	
 	    let _train_threshold: usize = round::floor(n as f64 * train_test_split as f64,0) as usize;
-	    let _capital = 0.0;
+	    let _capital = 1000.0;
 	    let state_size = _names.len()+3;
 	    let mut _state_high: Vec<f32> = Vec::with_capacity(state_size);
 	    let mut _state_low: Vec<f32> = Vec::with_capacity(state_size);
@@ -129,10 +129,8 @@ impl TradeRLEnv {
         self.t = self.train_threshold + 1;
         self.isTraining = false;
         self.PL.clear();
-        self.PL.push(0.0);
 	self.cumulate_PL = 0f32;
         self.position_history.clear();
-        self.position_history.push(0.0);
         self.asset_value.clear();
         return self.reset();
     }
@@ -234,10 +232,11 @@ impl RLEnv for TradeRLEnv {
     }
     fn save_asset_value(&mut self) -> f32 {
 	let mut val = self.capital;
-	if self.position > 0.0 {
-	    val = self.position * self.prices[self.t];
-        }
-	if self.position < 0.0 {
+	if self.position.abs() <= 0.1 {
+	    val = 0f32;
+        } else if self.position >= 0.0 {
+	    val = self.position * self.prices[self.t] - self.capital;;
+        } else if self.position < 0.0 {
 	    val = val + self.position * self.prices[self.t];
         }
 	self.asset_value.push(val);
