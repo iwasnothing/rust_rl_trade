@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::rl_env::{RLEnv,StepRow};
 use crate::rl_agent::{RLAgent,MemRow};
 use crate::trade_env::{TradeRLEnv};
-use crate::db_access::{ReqData,claim_req,perf_report,log2db};
+use crate::db_access::{ReqData,claim_req,perf_report,log2db,reject_req};
 use substring::Substring;
 use tokio::time::{sleep, Duration};
 
@@ -24,7 +24,7 @@ async fn main() {
 async fn process_req() {
     let req = match claim_req().await {
 	Some(r) => r,
-	None => return,
+	None => { reject_req().await; return;},
     };
     println!("{:?}",&req);
     let mut env: TradeRLEnv = match get_trade_env(&req).await {

@@ -114,6 +114,12 @@ pub async fn log2db(reqid: &str, i_episode: &i64, mean_loss: &f64, total_reward:
     let resp = run_db_query(&sql_text).await;
     println!("log db status: {:?}", resp);
 }
+pub async fn reject_req() {
+    let sql_text = "let $req  = ( select id from REQ where status = \'new\' order by timestamp ASC LIMIT 1 ); update $req set status = \'rejected\' RETURN after;";
+    println!("update req sql: {:?}", &sql_text);
+    let resp = run_db_query(&sql_text).await;
+    println!("update req status: {:?}", resp);
+}
 pub async fn update_req_status(reqid: String, status: String) {
     let sql_text = format!("update {} set status= \'{}\'", reqid, status);
     println!("update req sql: {:?}", &sql_text);
