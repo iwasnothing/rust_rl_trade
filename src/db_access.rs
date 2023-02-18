@@ -92,10 +92,10 @@ pub async fn run_db_query(sql: &str) -> Result<Value,Box<dyn error::Error>> {
         }
     };
 }
-pub fn pop_db_result(val: &Value) -> Option<Value> {
+pub fn pop_db_result(val: &Value, idx: usize) -> Option<Value> {
 	let _array = val.as_array()?;
-	if _array.len() > 0 {
-		return Some((_array[0].get("result")?).clone());
+	if _array.len() > idx {
+		return Some((_array[idx].get("result")?).clone());
 	} else {
 		return None;
 	}
@@ -116,9 +116,7 @@ pub async fn log2db(reqid: &str, i_episode: &i64, mean_loss: &f64, total_reward:
 }
 pub async fn reject_req() {
     let sql_text = "let $req  = ( select id from REQ where status = \'new\' order by timestamp ASC LIMIT 1 ); update $req set status = \'rejected\' RETURN after;";
-    println!("update req sql: {:?}", &sql_text);
     let resp = run_db_query(&sql_text).await;
-    println!("update req status: {:?}", resp);
 }
 pub async fn update_req_status(reqid: String, status: String) {
     let sql_text = format!("update {} set status= \'{}\'", reqid, status);
@@ -127,13 +125,15 @@ pub async fn update_req_status(reqid: String, status: String) {
     println!("update req status: {:?}", resp);
 }
 pub async fn claim_req() -> Option<ReqData> {
-    let sql_text = "select * from REQ where status = 'new' or status = 'running' order by timestamp LIMIT 1";
+    let sql_text = "let $req  = ( select id from REQ where status = \'new\' or status = \'running\' order by timestamp ASC LIMIT 1 ); update $req set status = \'processing\' RETURN after; ";
     let resp = run_db_query(sql_text).await;
+    println!("claim req status: {:?}", resp);
     let result = match resp {
         Ok(p) => p,
         Err(e) => return None,
     };
-    let obj_array = pop_db_result(&result)?.as_array()?.clone();
+    let obj_array = pop_db_result(&result,1)?.as_array()?.clone();
+    println!("claim req obj: {:?}", obj_array);
     if obj_array.len() > 0 {
 	let obj = &obj_array[0];
 	let rq =  parse_req_data(obj)?;
